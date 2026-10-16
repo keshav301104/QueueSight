@@ -1,0 +1,41 @@
+@import url('https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible+Next:wght@400;500;600;700;800&display=swap');
+@import "tailwindcss";
+
+/* QueueSight design tokens: a calm clinical ward board; colour only appears when something needs attention.
+   Status colours follow the triage scale staff already know (red > orange > yellow > green). */
+@theme {
+  --font-sans: "Atkinson Hyperlegible Next", ui-sans-serif, system-ui, sans-serif;
+
+  --color-linen: #ebf0ef;      /* page background - pale ward-wall green-grey */
+  --color-paper: #fbfcfc;      /* surfaces */
+  --color-ink: #17262e;        /* text */
+  --color-muted: #5b6b72;      /* secondary text */
+  --color-rule: #d3dcdb;       /* lines and tracks */
+  --color-teal: #0e6b66;       /* brand + interactive */
+  --color-teal-soft: #d6eae7;  /* predicted-range band */
+
+  --color-crit: #c2312b;       /* triage red */
+  --color-elev: #d4701c;       /* triage orange */
+  --color-watch: #c3961a;      /* triage yellow */
+  --color-ok: #2f8452;         /* triage green */
+  --color-quiet: #8a9aa0;
+}
+
+html, body, #root { min-height: 100%; }
+body {
+  margin: 0;
+  background: var(--color-linen);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+  font-feature-settings: "tnum" 1; /* numbers line up in columns */
+  -webkit-font-smoothing: antialiased;
+}
+
+:focus-visible { outline: 2px solid var(--color-teal); outline-offset: 2px; border-radius: 4px; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; transition: none !important; }
+}
+
+@keyframes vigil-pulse { 0%, 100% { opacity: 1 } 50% { opacity: .35 } }
+.pulse { animation: vigil-pulse 1.6s ease-in-out infinite; }
