@@ -53,6 +53,10 @@ Operations managers need a direct answer to one question:
 </tr>
 </table>
 
+| Model lab | Data quality |
+|---|---|
+| ![Model lab](docs/screenshots/05-model-lab.png) | ![Data quality](docs/screenshots/06-data-quality.png) |
+
 ---
 
 ## How it works
