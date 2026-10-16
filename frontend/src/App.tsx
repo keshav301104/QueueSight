@@ -1,15 +1,19 @@
 // App shell: navigation, the replay clock, and the page area. The patient drawer opens from any page via ?patient=ID
-import { LayoutDashboard, Pause, Play, Radar as RadarIcon, Target } from 'lucide-react'
+import { FlaskConical, LayoutDashboard, Pause, Play, Radar as RadarIcon, ShieldCheck, Target } from 'lucide-react'
 import { NavLink, Route, Routes, useSearchParams } from 'react-router-dom'
 import PatientDrawer from './components/PatientDrawer'
 import { fmtDate, fmtTime, toLocalIso } from './lib/api'
 import { useClock } from './lib/clock'
 import CommandCenter from './pages/CommandCenter'
+import DataQuality from './pages/DataQuality'
+import ModelLab from './pages/ModelLab'
 import RadarPage from './pages/Radar'
 
 const NAV = [
   { to: '/', label: 'Command center', icon: LayoutDashboard },
   { to: '/radar', label: 'Forgotten patients', icon: RadarIcon },
+  { to: '/model-lab', label: 'Model lab', icon: FlaskConical },
+  { to: '/data-quality', label: 'Data quality', icon: ShieldCheck },
 ]
 
 const SPEEDS = [
@@ -139,6 +143,8 @@ export default function App() {
           <Routes>
             <Route path="/" element={<CommandCenter />} />
             <Route path="/radar" element={<RadarPage />} />
+            <Route path="/model-lab" element={<ModelLab />} />
+            <Route path="/data-quality" element={<DataQuality />} />
           </Routes>
         </main>
       </div>
