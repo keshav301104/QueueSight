@@ -40,8 +40,9 @@ Operations managers need a direct answer to one question:
 | 🚨 | **Forgotten Patient Radar** | Anyone who has waited past their own P90, left without being seen, or is still waiting is ranked in one list. |
 | 🏥 | **Department board** | Each department's wait today vs *its own* normal, with a 7-day trend, sorted by pressure, in the triage colours staff already know. |
 | 💬 | **Plain-English explanations** | Every prediction shows its reasons, e.g. *"Triage level: High saves about 23 min."* Exact per-feature contributions come from the model itself (SHAP). |
+| 🧪 | **Model lab** | Every model metric against every baseline, measured only on months the model never saw, including the results that didn't work. |
+| 🛡️ | **Data quality center** | 9 issues found automatically in the raw data, each with its size and exactly how we handle it. |
 | ⏯️ | **Live replay clock** | The 2025 data plays back like a live feed. The demo starts on **23 Nov 2025, a month the models never saw**. In production, this clock becomes a live hospital feed. |
-| 🧪 | **Data Quality report** | 9 issues found in the raw data, each with its size and how we handled it. |
 
 <table>
 <tr>
@@ -49,13 +50,13 @@ Operations managers need a direct answer to one question:
 <td width="50%"><img src="docs/screenshots/03-patient-explanation.png" alt="Patient explanation"><br><b>Why this prediction.</b> High triage saves 23 min and Pharmacy saves 4.5 min, so the most likely wait is 24 min.</td>
 </tr>
 <tr>
+<td width="50%"><img src="docs/screenshots/05-model-lab.png" alt="Model lab"><br><b>Model lab.</b> Baselines, time split, calibration, feature importance, honest negative result.</td>
+<td width="50%"><img src="docs/screenshots/06-data-quality.png" alt="Data quality"><br><b>Data quality center.</b> Every issue in the raw data and how it is handled.</td>
+</tr>
+<tr>
 <td colspan="2"><img src="docs/screenshots/04-overdue-patient.png" alt="Overdue patient"><br><b>A forgotten patient.</b> Predicted 16–66 min, actually waited 68. The dot has crossed the band, so the patient is flagged.</td>
 </tr>
 </table>
-
-| Model lab | Data quality |
-|---|---|
-| ![Model lab](docs/screenshots/05-model-lab.png) | ![Data quality](docs/screenshots/06-data-quality.png) |
 
 ---
 
@@ -69,7 +70,7 @@ flowchart LR
     C --> E[LightGBM<br/>walk-out classifier]
     D --> F[FastAPI<br/>7 endpoints + SHAP reasons]
     E --> F
-    F --> G[React dashboard<br/>board · radar · patient view]
+    F --> G[React dashboard<br/>board · radar · patient view<br/>model lab · data quality]
     G --> H[Ops manager acts:<br/>call patient · move staff]
 ```
 
@@ -77,11 +78,54 @@ flowchart LR
 
 ---
 
-## The data, and what we found in it
+## How we used the dataset: every table, every column
 
-All four tables are joined: `patients (2,000) → encounters (8,000) → departments (12)` and `encounters → diagnostic_tests (5,000)`. That covers 365 days at about **22 visits/day**.
+All four tables are joined: `patients (2,000) → encounters (8,000) → departments (12)` and `encounters → diagnostic_tests (5,000)`. That covers 365 days at about **22 visits/day**. Every column has a deliberate role; nothing is used blindly and nothing is ignored without a reason.
 
-### Insights
+### `encounters.csv`: the core table
+| Column | How QueueSight uses it |
+|---|---|
+| `encounter_id` | Primary key; joins tests to visits |
+| `patient_id` | Joins to patients; builds **prior visits** and **days since last visit** from earlier visits only |
+| `arrival_time` | **Time-based split**, hour / weekday / weekend features, the replay clock, and all live-load features |
+| `department_id` | Model feature (2nd strongest), department board, department normal wait |
+| `visit_type` | Model feature (measured: no effect on wait in this data) |
+| `triage_level` | Model feature, **the strongest driver** (72% of learned importance) |
+| `service_start_time` | Defines the target; live queue features use only *whether* an earlier patient had started by time *t*, never their future time |
+| `service_end_time` | **Patients in care** at arrival; quality check (end before start) |
+| `wait_minutes` | **Target**, verified against timestamps (0 mismatches) |
+| `service_minutes` | Quality check only; **blocked as an input** (known only after the visit) |
+| `discharge_time` | Days since the *previous* visit's discharge; quality checks |
+| `outcome` | Label for the walk-out model; **blocked as an input** to the wait model |
+
+### `patients.csv`
+| Column | How QueueSight uses it |
+|---|---|
+| `patient_id` | Join key |
+| `age`, `sex`, `insurance_type` | Model features ("Unknown" kept as its own category) |
+| `chronic_condition` | Model feature. The value **"None"** is read as *missing* by default CSV readers (747 patients); we disable that so it stays a real value |
+| `home_area` | Profiled in the signal check (0 importance); left out of the model to avoid noise from 20 levels |
+
+### `departments.csv`
+| Column | How QueueSight uses it |
+|---|---|
+| `department_id`, `department_name` | Join key and UI labels |
+| `staff_count`, `bed_count`, `daily_capacity` | **Quality-checked, deliberately not features.** They are constant per department, so they add nothing beyond `department_id`, and capacity is 85–240× actual daily volume |
+| `service_type` | Quality check: 4 non-clinical departments list beds |
+
+### `diagnostic_tests.csv`
+| Column | How QueueSight uses it |
+|---|---|
+| `test_id`, `encounter_id` | Joins tests to visits; shown per patient in the patient drawer |
+| `test_type`, `priority` | Turnaround analysis by type × priority; turnaround model attempted (see *What didn't work*) |
+| `requested_time`, `completion_time` | Turnaround minutes; timestamp alignment check (99.9% fall outside their own visit) |
+
+### Feature engineering: 17 facts known *at the moment of arrival*
+Triage, department, visit type, age, sex, chronic condition, insurance, hour, weekday, weekend, prior visits, days since last visit, **patients already waiting in that department**, patients in care, department arrivals in the last 24 h, hospital arrivals in the last 3 h, and the **department's median wait over the previous 30 days** (counting only patients who had already been seen at that moment).
+
+**Leakage is blocked in code.** `app/features.py` holds a `FORBIDDEN` list (service times, discharge, outcome) and an `assert` that stops the program if any of them reaches the model.
+
+### Insights from the data
 - **Triage drives waiting.** Median wait: Critical **13 min**, High **26**, Medium **49**, Low **72**.
 - **Departments add up to 17 min.** Pediatrics and Laboratory are slowest (median 62); Cardiology, Pharmacy and Admissions are fastest (45).
 - **Time doesn't matter.** Arrival hour, weekday, month and visit type have no measurable effect on wait.
@@ -94,7 +138,7 @@ All four tables are joined: `patients (2,000) → encounters (8,000) → departm
 |---|---|---|
 | Test requested after the visit ended | 2,517 / 5,000 (50.3%) | Flagged; test timestamps are not linked to visits |
 | Test requested before the patient arrived | 2,481 / 5,000 (49.6%) | Flagged; test timestamps are not linked to visits |
-| `chronic_condition` value **"None"** is silently read as *missing* by default CSV readers | 747 / 2,000 (37.4%) | Loaded with NA-parsing disabled so "None" stays a real value |
+| `chronic_condition` value **"None"** silently read as *missing* | 747 / 2,000 (37.4%) | Loaded with NA-parsing disabled so "None" stays a real value |
 | "Left before care" visits still have service start/end times | 242 / 242 (100%) | Outcome label trusted; service times treated as unreliable |
 | `daily_capacity` is 85–240× actual visits/day | 12 / 12 (100%) | Capacity not used literally; load is modelled from observed arrivals |
 | Admitted/Transferred visits have a `discharge_time` | 2,073 / 2,073 (100%) | Interpreted as "left this department" |
@@ -102,7 +146,7 @@ All four tables are joined: `patients (2,000) → encounters (8,000) → departm
 | Sex recorded as Unknown/Other | 73 / 2,000 (3.7%) | Kept as its own category |
 | Non-clinical departments list beds (e.g. Pharmacy) | 4 / 12 | `bed_count` not used as a feature |
 
-> Reproduce with `python -m scripts.profile_data`. The full report is in `backend/artifacts/quality.json`.
+> Reproduce with `python -m scripts.profile_data`. Saved in `backend/artifacts/quality.json`; shown live in the Data quality page.
 
 ---
 
@@ -115,9 +159,9 @@ All four tables are joined: `patients (2,000) → encounters (8,000) → departm
 | 1 | LightGBM, quantile loss α=0.1 | **P10**: a short wait for this patient | Lower edge of the band |
 | 2 | LightGBM, quantile loss α=0.5 | **P50**: the most likely wait | Tick on the band, "why" explanations |
 | 3 | LightGBM, quantile loss α=0.9 | **P90**: a long wait for this patient | **The alarm line.** Waiting past it means forgotten |
-| 4 | LightGBM, binary classifier | Chance of leaving before care, given minutes waited | Reported honestly (see below) |
+| 4 | LightGBM, binary classifier | Chance of leaving before care, given minutes waited | Reported honestly, not used for alerts |
 
-**Why three wait models instead of one?** One number can't say whether 30 minutes is normal or alarming for a given patient. A range can. The range width is learned per patient, not fixed:
+**Why three wait models instead of one?** One number can't say whether 30 minutes is normal or alarming for a given patient. A range can. Each model is trained with *quantile (pinball) loss*: the P90 model is penalised 9× more for guessing too low than too high, so it learns a value 90% of real waits stay under. The P10 model is the mirror image. The range width is learned per patient, not fixed:
 
 | Triage | P10 | P50 | P90 | Width |
 |---|---|---|---|---|
@@ -126,38 +170,50 @@ All four tables are joined: `patients (2,000) → encounters (8,000) → departm
 | Medium | 26 | 48 | 69 | 45 min |
 | Low | 45 | 70 | 91 | 46 min |
 
-### Features: 17 facts known *at the moment of arrival*
-Triage, department, visit type, age, sex, chronic condition, insurance, hour, weekday, prior visits, days since last visit, **patients already waiting in that department**, patients in care, department arrivals in the last 24 h, hospital arrivals in the last 3 h, and the **department's median wait over the previous 30 days** (counting only patients who had already been seen).
-
-**Leakage is blocked in code.** `app/features.py` holds a `FORBIDDEN` list (service times, discharge, outcome) and an `assert` that stops the program if any of them reaches the model.
-
 ### Evaluation: split by time, never randomly
 
-| Split | Period | Visits |
-|---|---|---|
-| Train | Jan–Sep 2025 | 5,980 |
-| Validation (early stopping, baseline choice) | Oct 2025 | 699 |
-| **Test (reported)** | **Nov–Dec 2025, never seen** | **1,321** |
+| Split | Period | Visits | Role |
+|---|---|---|---|
+| Train | Jan–Sep 2025 | 5,980 | Fit the models |
+| Validation | Oct 2025 | 699 | Early stopping; choose the fairest baseline |
+| **Test** | **Nov–Dec 2025** | **1,321** | **Reported only; never used for training or tuning** |
 
 ### Results on the unseen test months
 
 | Method | MAE (minutes) |
 |---|---|
-| Global median (an "average wait" display) | 19.74 |
 | Department × time-of-day median | 19.94 |
+| Global median (an "average wait" display) | 19.74 |
 | Triage median | 14.26 |
 | Department × triage median (best hand-built rule) | 13.66 |
 | **QueueSight (LightGBM P50)** | **13.61** |
 
 - **31% more accurate than an average-wait display.**
-- **Matches the best hand-built rule without being told it.** In this data, wait ≈ triage + department + noise. The model found that structure by itself (triage carries about 72% of its learned importance), and the remaining ~13.6 min is noise no model can predict.
-- **Calibrated ranges:** the P10–P90 band contains **79.3%** of real waits against an 80% target.
+- **Matches the best hand-built rule without being told it.** In this data, wait ≈ triage + department + noise. The model found that structure by itself (triage 72%, department 8.5% of learned importance), and the remaining ~13.6 min is noise no model can predict. We did not tune further against the test set to chase a smaller number.
+- **Calibrated ranges:** the P10–P90 band contains **79.3%** of real waits against an 80% target (average width 44.6 min).
+- **Error by department** ranges from 11.2 min (Orthopedics) to 15.0 min (Laboratory). Full breakdown in `metrics.json` and the Model lab page.
 
-### An honest negative result
-We also trained a walk-out ("left before care") classifier. On the test months it scored **AUC 0.533** (0.5 = coin flip), PR-AUC 0.033 against a 2.95% base rate. Simple rules scored the same (wait-only 0.532, triage 0.469). **In this dataset, walk-outs are not predictable from anything recorded, including how long someone waited.** We report this rather than show a confident-looking risk score, and the radar does not rely on it.
+### Model card
 
-### Explainability
-Every prediction is broken into exact per-feature contributions using LightGBM's built-in SHAP values (`pred_contrib`), then translated into plain English in `app/explain.py`.
+| | Wait models (P10 / P50 / P90) | Walk-out classifier |
+|---|---|---|
+| Algorithm | LightGBM `LGBMRegressor`, `objective="quantile"` | LightGBM `LGBMClassifier`, `objective="binary"` |
+| Key hyperparameters | `learning_rate=0.03`, `num_leaves=15`, `min_child_samples=30`, `subsample=0.8`, `colsample_bytree=0.8`, `reg_lambda=1.0` | `learning_rate=0.03`, `num_leaves=7`, `min_child_samples=40` |
+| Trees | up to 3,000 with early stopping (150 rounds) on October → trained 100 / 140 / 146 | up to 2,000 with early stopping → trained 61 |
+| Inputs | 17 arrival-time features (6 categorical, 11 numeric) | Same 17 + minutes waited so far |
+| Categoricals | Fixed category lists saved with the model, so training and serving encode identically | Same |
+| Explanations | Exact SHAP contributions via LightGBM `pred_contrib` | Same |
+| Metrics | MAE, P10–P90 coverage, interval width, MAE by department | AUC, PR-AUC, recall in top 10%, Brier score |
+| Reproducibility | `random_state=42`; `python -m scripts.train_models` retrains everything in about 1 s | Same |
+| Saved to | `backend/artifacts/models/wait_model.joblib`, `metrics.json` | `backend/artifacts/models/lbc_model.joblib` |
+
+### What we tried that didn't work, and what we did about it
+| Attempt | Result on unseen months | Decision |
+|---|---|---|
+| Department × time-of-day rule | MAE 19.94, worse than a plain median | Proves time of day doesn't drive waits here; arrival hour kept as a feature but carries 1.9% importance |
+| **Walk-out (left before care) classifier** | **AUC 0.533** (coin flip 0.5), PR-AUC 0.033 vs 2.95% base rate; simple rules the same (0.532, 0.469) | Walk-outs are not predictable from anything recorded, including wait time. **Reported, not used for alerts** |
+| Diagnostic turnaround model (type, priority, department, triage, hour) | MAE 40.3 vs 38.3 for a type × priority median (`scripts/profile_data.py`) | No signal beyond type × priority. **Not deployed**; turnaround is reported as an operational finding (Urgent ≈ Routine) |
+| Department staffing / capacity as features | Constant per department; capacity 85–240× real volume | Kept out of the model; logged as data-quality issues |
 
 ---
 
@@ -188,7 +244,7 @@ python -m venv .venv
 .venv\Scripts\Activate.ps1          # macOS/Linux: source .venv/bin/activate
 pip install -r requirements.txt
 python -m scripts.train_models      # trains all 4 models in ~1 s and prints results
-uvicorn app.main:app --reload --port 8000
+python -m uvicorn app.main:app --reload --port 8000
 ```
 Check that http://localhost:8000/api/health returns `{"status":"ok"}`. Interactive API docs are at http://localhost:8000/docs.
 
@@ -245,7 +301,7 @@ QueueSight/
 ├── frontend/src/
 │   ├── lib/                      # typed API client, replay clock
 │   ├── components/               # WaitBand, Sparkline, RiskCurve, PatientDrawer
-│   └── pages/                    # CommandCenter, Radar
+│   └── pages/                    # CommandCenter, Radar, ModelLab, DataQuality
 └── docs/screenshots/
 ```
 
@@ -256,11 +312,11 @@ QueueSight/
 | Criterion | Where to look |
 |---|---|
 | Problem understanding & user need | [The problem](#the-problem). User: hospital ops managers; workflow: "who is being forgotten" |
-| Provided dataset usage | All 4 tables joined; [9 quality issues](#data-quality-9-issues-each-handled-explicitly); 5 insights |
-| Data science / ML quality | 4 baselines, time split, MAE + calibration, honest negative result |
+| Provided dataset usage | [Every table, every column](#how-we-used-the-dataset-every-table-every-column); 9 quality issues; 5 insights |
+| Data science / ML quality | 4 baselines, time split, MAE + calibration, model card, [what didn't work](#what-we-tried-that-didnt-work-and-what-we-did-about-it) |
 | ML model from scratch | 4 LightGBM models trained on the provided data; no API keys or pretrained models |
 | Working product & workflow | FastAPI + React, live replay, input → prediction → reason → action |
-| USP & innovation | Personal predicted *range*, explained flags, replay on unseen months |
+| USP & innovation | Personal predicted *range*, explained flags, replay on unseen months, Model lab |
 | Impact & responsible use | [Limitations](#responsible-use-and-limitations) below |
 
 ---
@@ -274,8 +330,7 @@ QueueSight/
 - **Decision support only.** QueueSight never replaces clinical triage, takes no automatic actions, and uses no real patient data.
 
 ## Roadmap
-- Diagnostics Monitor: test turnaround and "Urgent not honoured" alerts
-- Data Quality Center and Model Lab pages in the UI
+- Diagnostics monitor with "Urgent not honoured" alerts
 - What-if staffing simulator
 - Live HL7/FHIR feed instead of the replay clock; retraining and drift monitoring on real hospital data
 - Optional on-premise AI shift briefing that only narrates QueueSight's own numbers
