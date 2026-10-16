@@ -1,0 +1,108 @@
+{
+  "wait_time": {
+    "task": "Predict a patient's wait (minutes) at the moment they arrive",
+    "rows": {
+      "train": 5980,
+      "valid": 699,
+      "test": 1321
+    },
+    "split": "time-based: train Jan-Sep 2025, early-stop on Oct, report on Nov-Dec 2025",
+    "baselines_test_mae": {
+      "global median": 19.74,
+      "triage median": 14.26,
+      "dept x 4h median": 19.94,
+      "dept x triage median": 13.66
+    },
+    "best_baseline": "dept x triage median",
+    "model_test_mae": 13.61,
+    "improvement_vs_best_baseline_pct": 0.3,
+    "interval_p10_p90_coverage_pct": 79.3,
+    "interval_mean_width_min": 44.6,
+    "mae_by_department": {
+      "Admissions": 11.27,
+      "Cardiology": 14.95,
+      "Emergency": 13.74,
+      "General Medicine": 14.71,
+      "Laboratory": 15.01,
+      "Neurology": 14.29,
+      "Orthopedics": 11.15,
+      "Outpatient": 13.87,
+      "Pediatrics": 14.95,
+      "Pharmacy": 11.52,
+      "Radiology": 13.58,
+      "Surgery": 14.51
+    },
+    "best_iterations": {
+      "p10": 100,
+      "p50": 140,
+      "p90": 146
+    },
+    "feature_importance_gain": {
+      "triage_level": 0.7238,
+      "department_id": 0.0845,
+      "days_since_last": 0.0421,
+      "dept_hist_median_wait": 0.04,
+      "age": 0.0325,
+      "hour": 0.019,
+      "hosp_prev_3h": 0.011,
+      "chronic_condition": 0.0108,
+      "dow": 0.0095,
+      "dept_prev_24h": 0.0087,
+      "prior_visits": 0.0049,
+      "insurance_type": 0.0048,
+      "visit_type": 0.004,
+      "sex": 0.0019,
+      "in_service_now": 0.0017,
+      "waiting_now": 0.0008,
+      "is_weekend": 0.0001
+    }
+  },
+  "walkout_risk": {
+    "task": "Probability a waiting patient leaves before being seen, given how long they have waited",
+    "rows": {
+      "train": 5980,
+      "valid": 699,
+      "test": 1321
+    },
+    "positive_rate_test_pct": 2.95,
+    "baselines": {
+      "wait-only rule": {
+        "auc": 0.532,
+        "pr_auc": 0.032,
+        "recall_top10pct": 0.077
+      },
+      "triage rate": {
+        "auc": 0.469,
+        "pr_auc": 0.028,
+        "recall_top10pct": 0.051
+      }
+    },
+    "model": {
+      "auc": 0.533,
+      "pr_auc": 0.033,
+      "recall_top10pct": 0.051,
+      "brier": 0.0287
+    },
+    "best_iteration": 61,
+    "feature_importance_gain": {
+      "age": 0.1936,
+      "days_since_last": 0.1417,
+      "dept_hist_median_wait": 0.1087,
+      "dow": 0.0963,
+      "wait_minutes": 0.0929,
+      "in_service_now": 0.0823,
+      "hour": 0.0777,
+      "department_id": 0.0563,
+      "hosp_prev_3h": 0.0419,
+      "prior_visits": 0.0348,
+      "chronic_condition": 0.0309,
+      "dept_prev_24h": 0.0146,
+      "visit_type": 0.0132,
+      "triage_level": 0.007,
+      "insurance_type": 0.0044,
+      "is_weekend": 0.0036,
+      "sex": 0.0,
+      "waiting_now": 0.0
+    }
+  }
+}

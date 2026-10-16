@@ -1,0 +1,115 @@
+{
+  "summary": {
+    "raw_rows": {
+      "patients": 2000,
+      "encounters": 8000,
+      "departments": 12,
+      "tests": 5000
+    },
+    "clean_rows": {
+      "patients": 2000,
+      "encounters": 8000,
+      "departments": 12,
+      "tests": 5000
+    },
+    "issues_found": 9,
+    "days_covered": 365,
+    "date_range": [
+      "2025-01-01 00:06:00",
+      "2025-12-31 23:12:00"
+    ],
+    "visits_per_day": 21.9
+  },
+  "issues": [
+    {
+      "id": "test_after_discharge",
+      "table": "tests",
+      "severity": "medium",
+      "title": "Test requested after the visit ended",
+      "count": 2517,
+      "total": 5000,
+      "pct": 50.34,
+      "handling": "Flagged; synthetic timestamps not perfectly linked"
+    },
+    {
+      "id": "test_before_arrival",
+      "table": "tests",
+      "severity": "medium",
+      "title": "Test requested before the patient arrived",
+      "count": 2481,
+      "total": 5000,
+      "pct": 49.62,
+      "handling": "Flagged; synthetic timestamps not perfectly linked"
+    },
+    {
+      "id": "none_parsing",
+      "table": "patients",
+      "severity": "medium",
+      "title": "chronic_condition value 'None' is read as missing by default CSV readers",
+      "count": 747,
+      "total": 2000,
+      "pct": 37.35,
+      "handling": "Loaded with NA-parsing disabled so 'None' stays a real value"
+    },
+    {
+      "id": "lbc_with_service",
+      "table": "encounters",
+      "severity": "medium",
+      "title": "'Left before care' visits still have service start/end times",
+      "count": 242,
+      "total": 242,
+      "pct": 100.0,
+      "handling": "Outcome label trusted; service times for these visits treated as unreliable"
+    },
+    {
+      "id": "capacity_vs_volume",
+      "table": "departments",
+      "severity": "medium",
+      "title": "daily_capacity is far above actual visits/day (>10x)",
+      "count": 12,
+      "total": 12,
+      "pct": 100.0,
+      "handling": "Capacity not used literally; we model relative load from observed arrivals"
+    },
+    {
+      "id": "admit_with_discharge",
+      "table": "encounters",
+      "severity": "low",
+      "title": "Admitted/Transferred visits have a 'discharge_time'",
+      "count": 2073,
+      "total": 2073,
+      "pct": 100.0,
+      "handling": "Interpreted as 'left this department', not hospital discharge"
+    },
+    {
+      "id": "insurance_unknown",
+      "table": "patients",
+      "severity": "low",
+      "title": "Insurance type Unknown",
+      "count": 110,
+      "total": 2000,
+      "pct": 5.5,
+      "handling": "Kept as its own category"
+    },
+    {
+      "id": "sex_unknown",
+      "table": "patients",
+      "severity": "low",
+      "title": "Sex recorded as Unknown/Other",
+      "count": 73,
+      "total": 2000,
+      "pct": 3.65,
+      "handling": "Kept as its own category"
+    },
+    {
+      "id": "beds_non_clinical",
+      "table": "departments",
+      "severity": "low",
+      "title": "Non-clinical departments list beds (e.g. Pharmacy)",
+      "count": 4,
+      "total": 12,
+      "pct": 33.33,
+      "handling": "bed_count not used as a model feature"
+    }
+  ]
+}
