@@ -289,6 +289,6 @@ QueueSight/
 
 ## Team Extremers
 - Keshav Sharma
-- *[add teammate]*
+- Tanishka
 
 <div align="center"><sub>Synthetic educational data. Not for clinical decisions.</sub></div>
