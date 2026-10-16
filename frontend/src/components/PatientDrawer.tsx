@@ -74,7 +74,7 @@ export default function PatientDrawer({ encounterId, onClose }: { encounterId: s
 
                 <section>
                   <h3 className="font-bold">Walk-out risk {d.status === 'waiting' ? 'right now' : 'at this wait'}: {(100 * d.walkout_risk_now).toFixed(1)}%</h3>
-                  <p className="mb-2 text-sm text-muted">How the chance of leaving unseen grows the longer this patient waits. Red line is now.</p>
+                  <p className="mb-2 text-sm text-muted">Shown for transparency only: our walk-out model found no reliable signal in this data (AUC 0.53), so it never raises alerts.</p>
                   <RiskCurve points={d.risk_curve} waited={d.waited_min} />
                   <div className="mt-3"><DriverBars drivers={d.why_risk.drivers} unit="risk" /></div>
                 </section>

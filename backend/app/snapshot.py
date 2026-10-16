@@ -104,7 +104,8 @@ def radar(t, hours=24, limit=40):
 
 def _item(r, state, waited, risk_now):
     over = waited - r["pred_p90"]
-    score = max(over, 0) + (100 * risk_now if risk_now is not None else 0) + (30 if state == "left_unseen" else 0)
+    # Ranked by minutes past the predicted range only; the walk-out model showed no signal (AUC 0.53), so it never drives priority
+    score = max(over, 0) + (30 if state == "left_unseen" else 0)
     return {
         "encounter_id": r["encounter_id"], "patient_id": r["patient_id"],
         "department": STATE.dept_names.get(r["department_id"]), "department_id": r["department_id"],
