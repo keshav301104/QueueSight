@@ -339,7 +339,7 @@ QueueSight/
 - **Dataset:** DATATHON 2026 Track 1 synthetic dataset from the organisers (Data Science Club × IIEC, VIT-AP). No external data.
 - **Models:** all trained by the team from scratch. No pretrained models, no hosted APIs, no API keys.
 - **Libraries:** open-source only (pandas, NumPy, scikit-learn, LightGBM, FastAPI, React, Vite, Tailwind, TanStack Query, Framer Motion, lucide-react).
-- **Tools:** an AI coding assistant was used during development. All code was reviewed, run and tested by the team.
+- **Tools:**  an AI coding assistant was used during development. All code was reviewed, run and tested by the team.
 
 ## References
 - Ke et al., *LightGBM: A Highly Efficient Gradient Boosting Decision Tree*, NeurIPS 2017
