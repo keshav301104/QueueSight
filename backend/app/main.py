@@ -1,4 +1,4 @@
-"""Vigil API.  Run from backend/:   uvicorn app.main:app --reload --port 8000   ->  docs at /docs"""
+"""QueueSight API.  Run from backend/:   uvicorn app.main:app --reload --port 8000   ->  docs at /docs"""
 from contextlib import asynccontextmanager
 
 import pandas as pd
@@ -15,7 +15,7 @@ async def lifespan(_app):
     yield
 
 
-app = FastAPI(title="Vigil API", version="0.1.0", lifespan=lifespan,
+app = FastAPI(title="QueueSight API", version="0.1.0", lifespan=lifespan,
               description="No patient forgotten - hospital-flow intelligence on the DATATHON 2026 dataset.")
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
 
@@ -39,7 +39,7 @@ def health():
 @app.get("/api/meta")
 def meta():
     return {
-        "product": "Vigil",
+        "product": "QueueSight",
         "time_min": STATE.time_min.isoformat(), "time_max": STATE.time_max.isoformat(),
         "test_period_start": STATE.test_start.isoformat(), "default_time": STATE.default_time.isoformat(),
         "departments": [{"id": k, "name": v} for k, v in STATE.dept_names.items()],

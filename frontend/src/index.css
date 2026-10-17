@@ -37,5 +37,5 @@ body {
   *, *::before, *::after { animation: none !important; transition: none !important; }
 }
 
-@keyframes vigil-pulse { 0%, 100% { opacity: 1 } 50% { opacity: .35 } }
-.pulse { animation: vigil-pulse 1.6s ease-in-out infinite; }
+@keyframes QueueSight-pulse { 0%, 100% { opacity: 1 } 50% { opacity: .35 } }
+.pulse { animation: QueueSight-pulse 1.6s ease-in-out infinite; }

@@ -1,4 +1,4 @@
-"""Load the 4 raw CSVs correctly and clean them. Everything else in Vigil starts from load_clean()."""
+"""Load the 4 raw CSVs correctly and clean them. Everything else in QueueSight starts from load_clean()."""
 import numpy as np
 import pandas as pd
 

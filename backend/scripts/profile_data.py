@@ -1,5 +1,5 @@
 """
-Vigil - data health check + quick "is there real signal?" test.
+QueueSight - data health check + quick "is there real signal?" test.
 
 Run from inside backend/ :   python -m scripts.profile_data
 Paste the whole output back to Claude.

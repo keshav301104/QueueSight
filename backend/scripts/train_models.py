@@ -1,5 +1,5 @@
 """
-Vigil - build the dataset, run quality checks, train + evaluate models, save everything to backend/artifacts/.
+QueueSight - build the dataset, run quality checks, train + evaluate models, save everything to backend/artifacts/.
 
 Run from inside backend/ :   python -m scripts.train_models
 """
