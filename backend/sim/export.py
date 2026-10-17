@@ -12,8 +12,9 @@ TS_FMT = "%Y-%m-%d %H:%M:%S"
 
 
 def _clock(start: pd.Timestamp, minutes: pd.Series) -> pd.Series:
-    """Minutes-from-start -> wall-clock timestamps, rounded to the whole minute (like real hospital systems)."""
-    return start + pd.to_timedelta(minutes.round(), unit="min")
+    """Minutes-from-start -> wall-clock timestamps, cut to the whole minute like a real system clock
+    (cutting, not rounding, so 18:59:40 stays 18:59 and never jumps past closing time)."""
+    return start + pd.to_timedelta(np.floor(minutes), unit="min")
 
 
 def to_tables(result: SimResult) -> dict[str, pd.DataFrame]:
