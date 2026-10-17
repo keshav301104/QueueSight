@@ -1,0 +1,13 @@
+# What docker compose may NOT copy from the repo root into the backend image.
+# Your local venv, git history and the frontend stay out; the image builds its own.
+.git
+frontend
+docs
+**/.venv
+**/__pycache__
+**/*.pyc
+**/.pytest_cache
+.env
+data/sim
+data/processed
+backend/artifacts/sim
