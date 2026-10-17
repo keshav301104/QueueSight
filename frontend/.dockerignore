@@ -1,0 +1,3 @@
+# The image runs its own npm ci and build, so never copy these in from your machine
+node_modules
+dist
