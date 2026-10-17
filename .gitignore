@@ -17,3 +17,7 @@ Thumbs.db
 .vscode/
 # Local reports
 profile_report.txt
+
+
+# Simulator output (regenerate with: python -m scripts.simulate)
+data/sim/
