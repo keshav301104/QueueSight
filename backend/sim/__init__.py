@@ -1,0 +1,1 @@
+"""QueueSight hospital simulator: a discrete-event digital twin that generates realistic patient flow."""
