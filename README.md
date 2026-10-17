@@ -235,6 +235,20 @@ Triage, department, visit type, age, sex, chronic condition, insurance, hour, we
 
 ## Run it locally
 
+### Fastest: Docker (one command)
+
+Needs only [Docker Desktop](https://www.docker.com/products/docker-desktop/), no Python or Node.
+
+```powershell
+git clone https://github.com/keshav301104/QueueSight.git
+cd QueueSight
+docker compose up --build
+```
+
+Open **http://localhost:8080**. API docs: http://localhost:8000/docs. The first build takes a few minutes; after that it starts in seconds. Stop with `Ctrl+C`, then `docker compose down`.
+
+### Without Docker
+
 **Prerequisites:** Python 3.11+ and Node 20+.
 
 ### 1. Backend
