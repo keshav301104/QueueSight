@@ -1,0 +1,27 @@
+# QueueSight in Docker: the whole app with one command.
+#   docker compose up --build
+#   app -> http://localhost:8080      API docs -> http://localhost:8000/docs
+name: queuesight
+
+services:
+  backend:
+    build:
+      context: .                      # repo root, so the image can include data/raw/
+      dockerfile: backend/Dockerfile
+    ports:
+      - "8000:8000"
+    healthcheck:                      # healthy = models loaded and /api/health answers
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/health', timeout=3)"]
+      start_period: 60s               # while starting up...
+      start_interval: 2s              # ...check every 2 s, so the frontend can start quickly
+      interval: 30s                   # once running, check every 30 s
+      timeout: 5s
+      retries: 3
+
+  frontend:
+    build: ./frontend
+    ports:
+      - "8080:80"
+    depends_on:
+      backend:
+        condition: service_healthy    # start nginx only once the API is ready
