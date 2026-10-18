@@ -4,7 +4,7 @@ import pandas as pd
 
 # Columns that are only known AFTER the visit - never allowed as inputs for the wait model
 FORBIDDEN = {"service_start_time", "service_end_time", "discharge_time", "service_minutes",
-             "outcome", "wait_calc", "service_calc", "is_lbc"}
+             "outcome", "wait_calc", "service_calc", "is_lbc", "wait_end_time"}
 
 WAIT_CATS = ["department_id", "triage_level", "visit_type", "sex", "chronic_condition", "insurance_type"]
 WAIT_NUMS = ["hour", "dow", "is_weekend", "age", "prior_visits", "days_since_last",
@@ -26,10 +26,12 @@ def _live_load(enc):
         arr = g["arrival_time"].values
         st = g["service_start_time"].values
         en = g["service_end_time"].values
+        we = g["wait_end_time"].values  # called in, or left without being seen
         for k, i in enumerate(idx):
             t = arr[k]
-            # Whether an earlier patient has started yet is known at time t (we only use the yes/no, not their future time)
-            waiting_now[i] = np.sum(st[:k] > t)
+            # Still waiting at time t = not called in and not walked out yet.
+            # That yes/no is known at time t; we never use when they will be called.
+            waiting_now[i] = np.sum(we[:k] > t)
             in_service_now[i] = np.sum((st[:k] <= t) & (en[:k] > t))
             dept_prev_24h[i] = np.sum(arr[:k] > t - np.timedelta64(24, "h"))
     all_arr = enc["arrival_time"].values
