@@ -2,7 +2,7 @@
 import numpy as np
 import pandas as pd
 
-from app.config import RAW_DIR
+from app.config import DATA_SOURCE, RAW_DIR
 
 ENC_TIMES = ["arrival_time", "service_start_time", "service_end_time", "discharge_time"]
 TEST_TIMES = ["requested_time", "completion_time"]
@@ -13,7 +13,9 @@ LBC = "Left before care"
 def _read(name, date_cols=()):
     path = RAW_DIR / name
     if not path.exists():
-        raise FileNotFoundError(f"{path} not found - put the CSVs in data/raw/")
+        fix = ("create the simulated hospital first:  python -m scripts.simulate" if DATA_SOURCE == "sim"
+               else "put the DATATHON CSVs in data/raw/")
+        raise FileNotFoundError(f"{path} not found - {fix}")
     # keep_default_na=False: pandas would otherwise turn the real value "None" into NaN
     df = pd.read_csv(path, keep_default_na=False, na_values=[""])
     for c in date_cols:
@@ -52,6 +54,11 @@ def clean(raw):
     enc["wait_minutes"] = enc["wait_minutes"].fillna(enc["wait_calc"])
     enc["service_minutes"] = enc["service_minutes"].fillna(enc["service_calc"])
     enc = enc[enc["wait_minutes"].notna() & (enc["wait_minutes"] >= 0)]
+
+    # When each patient stopped waiting: the moment they were called in, or - for a walk-out
+    # who was never called - the moment they gave up and left (arrival + how long they waited)
+    left_at = enc["arrival_time"] + pd.to_timedelta(enc["wait_minutes"], unit="min")
+    enc["wait_end_time"] = enc["service_start_time"].fillna(left_at)
 
     enc["is_lbc"] = enc["outcome"].eq(LBC).astype(int)
     enc["triage_rank"] = enc["triage_level"].map({t: i for i, t in enumerate(TRIAGE_ORDER)})
