@@ -5,6 +5,7 @@ import pandas as pd
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 
+from app.config import DATA_SOURCE
 from app.snapshot import board, encounter_detail, radar
 from app.state import STATE
 
@@ -16,7 +17,7 @@ async def lifespan(_app):
 
 
 app = FastAPI(title="QueueSight API", version="0.1.0", lifespan=lifespan,
-              description="No patient forgotten - hospital-flow intelligence on the DATATHON 2026 dataset.")
+              description="No patient forgotten - hospital-flow intelligence. Data: set QUEUESIGHT_DATA to datathon or sim.")
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
 
 
@@ -31,6 +32,12 @@ def _clock(t):
     return min(max(ts, STATE.time_min), STATE.time_max)
 
 
+DISCLAIMERS = {
+    "datathon": "Synthetic DATATHON 2026 data. Not for clinical decisions.",
+    "sim": "Simulated hospital from the QueueSight simulator. Not for clinical decisions.",
+}
+
+
 @app.get("/api/health")
 def health():
     return {"status": "ok" if STATE.ready else "loading"}
@@ -40,10 +47,11 @@ def health():
 def meta():
     return {
         "product": "QueueSight",
+        "data_source": DATA_SOURCE,
         "time_min": STATE.time_min.isoformat(), "time_max": STATE.time_max.isoformat(),
         "test_period_start": STATE.test_start.isoformat(), "default_time": STATE.default_time.isoformat(),
         "departments": [{"id": k, "name": v} for k, v in STATE.dept_names.items()],
-        "disclaimer": "Synthetic educational data. Not for clinical decisions.",
+        "disclaimer": DISCLAIMERS[DATA_SOURCE],
     }
 
 
