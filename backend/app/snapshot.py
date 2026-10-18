@@ -21,21 +21,36 @@ def _status(ratio):
     return "critical" if ratio >= 1.4 else "elevated" if ratio >= 1.1 else "normal"
 
 
+def queue_state(df, t):
+    """Where every visit stands at time t. A patient stops waiting when they are called in
+    or when they walk out, so a walk-out never stays on the board as "waiting" forever."""
+    arrived = df["arrival_time"] <= t
+    ended = df["wait_end_time"] <= t                  # called in, or gave up and left
+    started = df["service_start_time"] <= t           # actually called in (empty for walk-outs -> False)
+    return {
+        "arrived": arrived,
+        "waiting": arrived & ~ended,
+        "ended": ended,
+        "started": started,
+        "left": ended & (df["is_lbc"] == 1),
+        "in_service": started & (df["service_end_time"] > t),
+    }
+
+
 def board(t):
     df = STATE.df
     day0 = t.normalize()
-    arrived = df["arrival_time"] <= t
-    started = df["service_start_time"] <= t
-    waiting = arrived & ~started.fillna(False)
-    in_service = started & (df["service_end_time"] > t)
-    today = arrived & (df["arrival_time"] >= day0)
-    seen_today = today & started
+    q = queue_state(df, t)
+    waiting, started, in_service = q["waiting"], q["started"], q["in_service"]
+    today = q["arrived"] & (df["arrival_time"] >= day0)
+    seen_today = today & started          # median waits use patients who were called in
+    ended_today = today & q["ended"]
     elapsed = (t - df["arrival_time"]).dt.total_seconds() / 60
 
-    # A visit is "overdue" when its (real or so-far) wait exceeds our P90 prediction
-    over_seen = seen_today & (df["wait_minutes"] > df["pred_p90"])
+    # A visit is "overdue" when its (finished or so-far) wait exceeds our P90 prediction
+    over_done = ended_today & (df["wait_minutes"] > df["pred_p90"])
     over_wait = waiting & (elapsed > df["pred_p90"])
-    lbc_today = seen_today & (df["is_lbc"] == 1)  # we learn about a walk-out when they would have been called
+    left_today = today & q["left"]        # counted the moment the patient leaves
 
     week0 = day0 - pd.Timedelta(days=6)
     week = df[(df["arrival_time"] >= week0) & (df["arrival_time"] <= t) & started]
@@ -57,8 +72,8 @@ def board(t):
             "median_wait_today": _num(med_today), "normal_wait": _num(normal),
             "predicted_median_today": _num(df.loc[today & m, "pred_p50"].median()),
             "ratio_vs_normal": _num(ratio, 2), "status": _status(ratio),
-            "overdue_today": int(((over_seen | over_wait) & m).sum()),
-            "walkouts_today": int((lbc_today & m).sum()),
+            "overdue_today": int(((over_done | over_wait) & m).sum()),
+            "walkouts_today": int((left_today & m).sum()),
             "trend_7d": [_num(v) for v in trend.values],
         })
     rank = {"critical": 0, "elevated": 1, "normal": 2, "quiet": 3}
@@ -69,8 +84,8 @@ def board(t):
         "in_service_now": int(in_service.sum()),
         "arrivals_today": int(today.sum()),
         "median_wait_today": _num(df.loc[seen_today, "wait_minutes"].median()),
-        "overdue_today": int((over_seen | over_wait).sum()),
-        "walkouts_today": int(lbc_today.sum()),
+        "overdue_today": int((over_done | over_wait).sum()),
+        "walkouts_today": int(left_today.sum()),
         "departments_under_pressure": sum(r["status"] in ("critical", "elevated") for r in rows),
     }
     return kpis, rows
@@ -80,18 +95,17 @@ def radar(t, hours=24, limit=40):
     """Patients at risk of being forgotten: waiting past their predicted range, likely to walk out, or already gone."""
     df = STATE.df
     lo = t - pd.Timedelta(hours=hours)
-    arrived = df["arrival_time"] <= t
-    started = (df["service_start_time"] <= t).fillna(False)
+    q = queue_state(df, t)
     elapsed = (t - df["arrival_time"]).dt.total_seconds() / 60
 
     items = []
-    w = df[arrived & ~started]
+    w = df[q["waiting"]]
     if len(w):
         risk = STATE.lbc_risk(w, elapsed[w.index].values)
         for (i, r), rk in zip(w.iterrows(), risk):
             el = float(elapsed[i])
             items.append(_item(r, "waiting", el, rk))
-    recent = df[started & (df["arrival_time"] >= lo)]
+    recent = df[q["ended"] & (df["arrival_time"] >= lo)]
     for i, r in recent[recent["is_lbc"] == 1].iterrows():
         items.append(_item(r, "left_unseen", float(r["wait_minutes"]), None))
     for i, r in recent[(recent["is_lbc"] == 0) & (recent["wait_minutes"] > recent["pred_p90"])].iterrows():
@@ -104,7 +118,7 @@ def radar(t, hours=24, limit=40):
 
 def _item(r, state, waited, risk_now):
     over = waited - r["pred_p90"]
-    # Ranked by minutes past the predicted range only; the walk-out model showed no signal (AUC 0.53), so it never drives priority
+    # Ranked by minutes past the predicted range only, so every alert is easy to explain to staff
     score = max(over, 0) + (30 if state == "left_unseen" else 0)
     return {
         "encounter_id": r["encounter_id"], "patient_id": r["patient_id"],
@@ -125,8 +139,9 @@ def encounter_detail(encounter_id, t):
         return None
     row = hit.iloc[[0]]
     r = row.iloc[0]
-    started = pd.notna(r["service_start_time"]) and r["service_start_time"] <= t
-    waited = float(r["wait_minutes"]) if started else max(float((t - r["arrival_time"]).total_seconds() / 60), 0)
+    ended = r["wait_end_time"] <= t               # called in or walked out by time t
+    left = ended and r["is_lbc"] == 1
+    waited = float(r["wait_minutes"]) if ended else max(float((t - r["arrival_time"]).total_seconds() / 60), 0)
 
     wb, lb = STATE.wait_bundle, STATE.lbc_bundle
     why_wait = contributions(wb["models"]["p50"], row, wb["features"], wb["categories"], STATE.dept_names, unit="min")
@@ -143,8 +158,8 @@ def encounter_detail(encounter_id, t):
                     "insurance_type": r["insurance_type"], "home_area": r["home_area"]},
         "department": STATE.dept_names.get(r["department_id"]), "triage_level": r["triage_level"],
         "visit_type": r["visit_type"], "arrival_time": _iso(r["arrival_time"]),
-        "status": "seen" if started else "waiting", "waited_min": _num(waited),
-        "outcome": r["outcome"] if started else None,
+        "status": "left" if left else "seen" if ended else "waiting", "waited_min": _num(waited),
+        "outcome": r["outcome"] if ended else None,
         "prediction": {"p10": _num(r["pred_p10"]), "p50": _num(r["pred_p50"]), "p90": _num(r["pred_p90"])},
         "why_wait": why_wait, "why_risk": why_risk,
         "walkout_risk_now": _num(STATE.lbc_risk(row_now, [waited])[0], 3),
