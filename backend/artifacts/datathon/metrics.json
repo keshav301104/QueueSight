@@ -109,9 +109,9 @@
       "patient_moments": 2291,
       "walked_out_pct": 3.0,
       "model": {
-        "auc": 0.496,
+        "auc": 0.494,
         "pr_auc": 0.03,
-        "brier": 0.0299
+        "brier": 0.0294
       },
       "rules": {
         "minutes waited so far": {
@@ -148,13 +148,13 @@
           "band": "0%-5%",
           "shown": 0.027,
           "really_left": 0.03,
-          "n": 2284
+          "n": 2134
         },
         {
-          "band": "35%-50%",
-          "shown": 0.375,
-          "really_left": 0.0,
-          "n": 7
+          "band": "5%-10%",
+          "shown": 0.053,
+          "really_left": 0.032,
+          "n": 157
         }
       ]
     }
