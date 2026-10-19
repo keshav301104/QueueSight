@@ -2,6 +2,7 @@
 import { useQuery } from '@tanstack/react-query'
 import type { ReactNode } from 'react'
 import { api } from '../lib/api'
+import { useClock } from '../lib/clock'
 
 interface WaitMetrics {
   rows: { train: number; valid: number; test: number }
@@ -57,6 +58,7 @@ function Card({ title, children }: { title: string; children: ReactNode }) {
 }
 
 export default function ModelLab() {
+  const { meta } = useClock()
   const q = useQuery({ queryKey: ['metrics'], queryFn: api.metrics })
   if (q.isError) return <p className="text-crit">{(q.error as Error).message}</p>
   if (!q.data) return <p className="text-muted">Loading model results…</p>
@@ -64,6 +66,10 @@ export default function ModelLab() {
 
   const naive = w.baselines_test_mae['global median']
   const vsNaive = Math.round((100 * (naive - w.model_test_mae)) / naive)
+  const bestRule = w.baselines_test_mae[w.best_baseline]
+  const vsBest = Math.round((100 * (bestRule - w.model_test_mae)) / bestRule)
+  const trusted = meta?.walkout_model.trusted ?? false
+  const bestRuleAuc = meta?.walkout_model.best_rule_auc
   const rows = [...Object.entries(w.baselines_test_mae).map(([k, v]) => ({ k: BASELINE_NAMES[k] ?? k, v, us: false })),
     { k: 'QueueSight model (LightGBM P50)', v: w.model_test_mae, us: true }].sort((a, b) => b.v - a.v)
   const maxMae = Math.max(...rows.map((r) => r.v))
@@ -77,7 +83,7 @@ export default function ModelLab() {
         <h1 className="text-2xl font-extrabold tracking-tight">Model lab</h1>
         <p className="mt-1 text-muted">
           Every number on this page is measured on November and December 2025, visits our models never saw while training.
-          All models are LightGBM, trained from scratch on the provided data. No pretrained models, no API keys.
+          All models are LightGBM, trained from scratch on this hospital's data. No pretrained models, no API keys.
         </p>
       </div>
 
@@ -100,9 +106,10 @@ export default function ModelLab() {
         <Card title="Wait-time error vs simple rules (lower is better)">
           <div className="space-y-3">{rows.map((r) => <Bar key={r.k} label={r.k} value={r.v} max={maxMae} unit="min" highlight={r.us} />)}</div>
           <p className="mt-4 text-sm text-muted">
-            In this data, waiting is driven by triage and department plus random noise. The model found that structure by
-            itself and matches the best hand-built rule, then adds what a rule cannot: a calibrated range per patient and a
-            reason for every prediction.
+            {vsBest >= 5
+              ? `The model is ${vsBest}% more accurate than the best hand-built rule, because it also sees how busy the department is right now. `
+              : `Here waiting is driven mostly by triage and department, so the model matches the best hand-built rule. `}
+            It also adds what no rule can: a calibrated range per patient and a reason for every prediction.
           </p>
         </Card>
 
@@ -134,7 +141,7 @@ export default function ModelLab() {
           <div className="space-y-3">
             {feats.map(([k, v]) => <Bar key={k} label={FEATURE_NAMES[k] ?? k} value={Math.round(v * 1000) / 10} max={100 * feats[0][1]} unit="%" highlight={k === feats[0][0]} />)}
           </div>
-          <p className="mt-4 text-sm text-muted">Share of what the model learned, by input. Arrival hour and weekday barely matter in this data.</p>
+          <p className="mt-4 text-sm text-muted">Share of what the model learned, by input.</p>
         </Card>
 
         <Card title="Average error by department">
@@ -144,16 +151,28 @@ export default function ModelLab() {
         </Card>
       </div>
 
-      <Card title="Walk-out prediction: an honest negative result">
+      <Card title={trusted ? 'Walk-out prediction' : 'Walk-out prediction: an honest negative result'}>
         <div className="grid gap-6 lg:grid-cols-[1fr_1.2fr]">
-          <div>
-            <div className="text-3xl font-extrabold text-elev">No reliable signal</div>
-            <p className="mt-2 text-sm text-muted">
-              We trained a model to predict who leaves before being seen ({lbc.positive_rate_test_pct}% of test visits).
-              It scores AUC {lbc.model.auc} where 0.5 is a coin flip, the same as simple rules. In this dataset walk-outs are
-              not explained by waiting time or anything else recorded, so QueueSight does not raise alerts from this model.
-            </p>
-          </div>
+          {trusted ? (
+            <div>
+              <div className="text-3xl font-extrabold text-teal">Catches {Math.round(100 * lbc.model.recall_top10pct)}% of walk-outs</div>
+              <p className="mt-2 text-sm text-muted">
+                We trained a model to predict who leaves before being seen ({lbc.positive_rate_test_pct}% of test visits).
+                The 10% of patients it flags as most at risk include {Math.round(100 * lbc.model.recall_top10pct)}% of everyone who
+                walked out. It scores AUC {lbc.model.auc} where 0.5 is a coin flip, ahead of the best simple rule ({bestRuleAuc}).
+                In this hospital, walk-outs follow how long people wait and how crowded it is, and the model can see both.
+              </p>
+            </div>
+          ) : (
+            <div>
+              <div className="text-3xl font-extrabold text-elev">No reliable signal</div>
+              <p className="mt-2 text-sm text-muted">
+                We trained a model to predict who leaves before being seen ({lbc.positive_rate_test_pct}% of test visits).
+                It scores AUC {lbc.model.auc} where 0.5 is a coin flip, no better than simple rules. In this dataset walk-outs are
+                not explained by waiting time or anything else recorded, so QueueSight does not raise alerts from this model.
+              </p>
+            </div>
+          )}
           <table className="w-full text-sm">
             <thead className="text-left text-muted">
               <tr><th className="pb-2 font-normal">Method</th><th className="pb-2 font-normal">AUC</th><th className="pb-2 font-normal">PR-AUC</th><th className="pb-2 font-normal">Walk-outs in top 10%</th></tr>
