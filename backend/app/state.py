@@ -10,6 +10,20 @@ from app.data import load_clean
 from app.features import build_encounter_features
 from app.ml import predict_lbc, predict_wait
 
+# A walk-out risk score is only worth acting on when it is clearly better than chance (AUC 0.5)
+TRUSTED_AUC = 0.75
+
+
+def walkout_verdict(metrics):
+    """Can staff rely on the walk-out model for this hospital? Judged LIVE (risk right now vs who really left),
+    not in hindsight: it must clear TRUSTED_AUC and beat every simple rule."""
+    live = metrics["walkout_risk"].get("live")
+    if not live:
+        return {"auc": None, "best_rule_auc": None, "trusted": False}
+    auc = live["model"]["auc"]
+    best_rule = max((r["auc"] or 0) for r in live["rules"].values())
+    return {"auc": auc, "best_rule_auc": best_rule, "trusted": bool(auc and auc >= TRUSTED_AUC and auc > best_rule)}
+
 
 class State:
     def __init__(self):
@@ -25,6 +39,7 @@ class State:
         self.lbc_bundle = joblib.load(models_dir / "lbc_model.joblib")
         self.metrics = json.loads((ARTIFACTS_DIR / "metrics.json").read_text())
         self.quality = json.loads((ARTIFACTS_DIR / "quality.json").read_text())
+        self.walkout_model = walkout_verdict(self.metrics)
 
         df = build_encounter_features(self.clean)
         df[["pred_p10", "pred_p50", "pred_p90"]] = predict_wait(self.wait_bundle, df).values
@@ -56,7 +71,10 @@ class State:
         return pd.Timestamp(cands[int(np.argmax(waiting))])
 
     def lbc_risk(self, rows, waited_minutes):
-        return predict_lbc(self.lbc_bundle, rows, wait_override=waited_minutes)
+        """Walk-out risk right now, calibrated on live moments so that 30% means about 3 in 10 such patients leave."""
+        raw = predict_lbc(self.lbc_bundle, rows, wait_override=waited_minutes)
+        calibrator = self.lbc_bundle.get("live_calibrator")
+        return calibrator.predict(raw) if calibrator is not None else raw
 
 
 STATE = State()
