@@ -2,7 +2,7 @@
 import { FlaskConical, LayoutDashboard, Pause, Play, Radar as RadarIcon, ShieldCheck, Target } from 'lucide-react'
 import { NavLink, Route, Routes, useSearchParams } from 'react-router-dom'
 import PatientDrawer from './components/PatientDrawer'
-import { fmtDate, fmtTime, toLocalIso } from './lib/api'
+import { fmtDate, fmtTime, HOSPITAL_NAME, toLocalIso } from './lib/api'
 import { useClock } from './lib/clock'
 import CommandCenter from './pages/CommandCenter'
 import DataQuality from './pages/DataQuality'
@@ -91,7 +91,7 @@ function ReplayClock() {
 }
 
 export default function App() {
-  const { metaError } = useClock()
+    const { metaError, meta } = useClock()
   const [params, setParams] = useSearchParams()
   const patient = params.get('patient')
 
@@ -130,9 +130,13 @@ export default function App() {
             </NavLink>
           ))}
         </nav>
-        <p className="mt-10 hidden text-xs leading-relaxed text-muted lg:block">
-          Synthetic training data from DATATHON 2026. Not for clinical decisions.
-        </p>
+        {meta && (
+          <div className="mt-10 hidden lg:block">
+            <div className="text-xs font-semibold uppercase tracking-wide text-muted">Data</div>
+            <div className="mt-1 text-sm font-semibold">{HOSPITAL_NAME[meta.data_source]}</div>
+            <p className="mt-1 text-xs leading-relaxed text-muted">{meta.disclaimer}</p>
+          </div>
+        )}
       </aside>
 
       <div className="min-w-0">

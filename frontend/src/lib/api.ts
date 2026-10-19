@@ -3,14 +3,23 @@
 export type Status = 'critical' | 'elevated' | 'normal' | 'quiet'
 export type RadarState = 'waiting' | 'left_unseen' | 'was_overdue'
 
+export type DataSource = 'datathon' | 'sim'
+
 export interface Meta {
   product: string
+  data_source: DataSource
   time_min: string
   time_max: string
   test_period_start: string
   default_time: string
   departments: { id: string; name: string }[]
   disclaimer: string
+  walkout_model: { auc: number | null; best_rule_auc: number; trusted: boolean }
+}
+
+export const HOSPITAL_NAME: Record<DataSource, string> = {
+  datathon: 'DATATHON 2026 hospital',
+  sim: 'Simulated hospital',
 }
 
 export interface Kpis {
@@ -72,7 +81,7 @@ export interface EncounterDetail {
   triage_level: string
   visit_type: string
   arrival_time: string
-  status: 'seen' | 'waiting'
+    status: 'seen' | 'waiting' | 'left'
   waited_min: number
   outcome: string | null
   prediction: { p10: number; p50: number; p90: number }

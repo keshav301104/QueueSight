@@ -1,6 +1,7 @@
 // Data quality center: every problem found in the raw dataset, how big it is, and how QueueSight handles it.
 import { useQuery } from '@tanstack/react-query'
 import { api } from '../lib/api'
+import { useClock } from '../lib/clock'
 
 interface Issue { id: string; table: string; severity: 'high' | 'medium' | 'low'; title: string; count: number; total: number; pct: number; handling: string }
 interface Quality {
@@ -15,6 +16,7 @@ const SEVERITY = {
 }
 
 export default function DataQuality() {
+  const { meta } = useClock()
   const q = useQuery({ queryKey: ['quality'], queryFn: api.quality })
   if (q.isError) return <p className="text-crit">{(q.error as Error).message}</p>
   if (!q.data) return <p className="text-muted">Checking the data…</p>
@@ -74,8 +76,7 @@ export default function DataQuality() {
       </section>
 
       <p className="text-sm text-muted">
-        Covers {s.days_covered} days, {s.date_range[0].slice(0, 10)} to {s.date_range[1].slice(0, 10)}. Synthetic educational
-        data from DATATHON 2026, not real patient records.
+        Covers {s.days_covered} days, {s.date_range[0].slice(0, 10)} to {s.date_range[1].slice(0, 10)}. {meta?.disclaimer}
       </p>
     </div>
   )
