@@ -20,6 +20,19 @@ def _status(ratio):
         return "quiet"
     return "critical" if ratio >= 1.4 else "elevated" if ratio >= 1.1 else "normal"
 
+# Each 1% of walk-out risk counts like 1 minute past the predicted range. Chosen on October 2025 and
+# confirmed on Nov-Dec with scripts/evaluate_radar.py. Only used when the walk-out model is trusted.
+WALKOUT_WEIGHT = 100
+LEFT_BONUS = 30  # someone who already left unseen ranks above an equally overdue patient
+
+
+def priority(minutes_over, risk=None, left=False, use_risk=False, weight=WALKOUT_WEIGHT):
+    """How urgently staff should look at a patient: minutes past the predicted range,
+    plus walk-out risk when the model is trusted for this hospital, plus a bump for anyone who already left."""
+    score = np.maximum(minutes_over, 0)
+    if use_risk and risk is not None:
+        score = score + weight * np.asarray(risk)
+    return score + (LEFT_BONUS if left else 0)
 
 def queue_state(df, t):
     """Where every visit stands at time t. A patient stops waiting when they are called in
@@ -118,8 +131,7 @@ def radar(t, hours=24, limit=40):
 
 def _item(r, state, waited, risk_now):
     over = waited - r["pred_p90"]
-    # Ranked by minutes past the predicted range only, so every alert is easy to explain to staff
-    score = max(over, 0) + (30 if state == "left_unseen" else 0)
+    score = priority(over, risk_now, left=state == "left_unseen", use_risk=STATE.walkout_model["trusted"])
     return {
         "encounter_id": r["encounter_id"], "patient_id": r["patient_id"],
         "department": STATE.dept_names.get(r["department_id"]), "department_id": r["department_id"],
