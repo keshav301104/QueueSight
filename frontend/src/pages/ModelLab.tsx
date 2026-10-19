@@ -15,10 +15,19 @@ interface WaitMetrics {
   feature_importance_gain: Record<string, number>
 }
 interface Score { auc: number | null; pr_auc: number | null; recall_top10pct: number }
+interface Band { band: string; shown: number; really_left: number; n: number }
+interface LiveMetrics {
+  patient_moments: number
+  model: { auc: number | null; pr_auc: number | null; brier: number | null }
+  rules: Record<string, { auc: number | null; pr_auc: number | null }>
+  calibration_before: Band[]
+  calibration_after: Band[]
+}
 interface WalkoutMetrics {
   positive_rate_test_pct: number
   baselines: Record<string, Score>
   model: Score & { brier: number }
+  live?: LiveMetrics
 }
 interface Metrics { wait_time: WaitMetrics; walkout_risk: WalkoutMetrics }
 
@@ -29,6 +38,13 @@ const FEATURE_NAMES: Record<string, string> = {
   waiting_now: 'Patients already waiting', in_service_now: 'Patients in care', dept_prev_24h: 'Dept arrivals, last 24h',
   hosp_prev_3h: 'Hospital arrivals, last 3h', dept_hist_median_wait: "Dept's recent median wait", wait_minutes: 'Minutes waited',
 }
+// Each hindsight rule and the live rule it corresponds to
+const WALKOUT_RULES: { label: string; hindsight: string; live: string }[] = [
+  { label: 'Minutes waited (simple rule)', hindsight: 'wait-only rule', live: 'minutes waited so far' },
+  { label: 'Triage walk-out rate (simple rule)', hindsight: 'triage rate', live: 'triage rate' },
+]
+const pct = (x: number) => `${Math.round(100 * x)}%`
+
 const BASELINE_NAMES: Record<string, string> = {
   'global median': 'Average-wait display (global median)',
   'dept x 4h median': 'Department × time of day',
@@ -69,6 +85,7 @@ export default function ModelLab() {
   const bestRule = w.baselines_test_mae[w.best_baseline]
   const vsBest = Math.round((100 * (bestRule - w.model_test_mae)) / bestRule)
   const trusted = meta?.walkout_model.trusted ?? false
+  const live = lbc.live
   const bestRuleAuc = meta?.walkout_model.best_rule_auc
   const rows = [...Object.entries(w.baselines_test_mae).map(([k, v]) => ({ k: BASELINE_NAMES[k] ?? k, v, us: false })),
     { k: 'QueueSight model (LightGBM P50)', v: w.model_test_mae, us: true }].sort((a, b) => b.v - a.v)
@@ -153,39 +170,61 @@ export default function ModelLab() {
 
       <Card title={trusted ? 'Walk-out prediction' : 'Walk-out prediction: an honest negative result'}>
         <div className="grid gap-6 lg:grid-cols-[1fr_1.2fr]">
-          {trusted ? (
-            <div>
-              <div className="text-3xl font-extrabold text-teal">Catches {Math.round(100 * lbc.model.recall_top10pct)}% of walk-outs</div>
-              <p className="mt-2 text-sm text-muted">
-                We trained a model to predict who leaves before being seen ({lbc.positive_rate_test_pct}% of test visits).
-                The 10% of patients it flags as most at risk include {Math.round(100 * lbc.model.recall_top10pct)}% of everyone who
-                walked out. It scores AUC {lbc.model.auc} where 0.5 is a coin flip, ahead of the best simple rule ({bestRuleAuc}).
-                In this hospital, walk-outs follow how long people wait and how crowded it is, and the model can see both.
-              </p>
-            </div>
-          ) : (
-            <div>
-              <div className="text-3xl font-extrabold text-elev">No reliable signal</div>
-              <p className="mt-2 text-sm text-muted">
-                We trained a model to predict who leaves before being seen ({lbc.positive_rate_test_pct}% of test visits).
-                It scores AUC {lbc.model.auc} where 0.5 is a coin flip, no better than simple rules. In this dataset walk-outs are
-                not explained by waiting time or anything else recorded, so QueueSight does not raise alerts from this model.
-              </p>
-            </div>
-          )}
-          <table className="w-full text-sm">
+          <div>
+            {trusted
+              ? <div className="text-3xl font-extrabold text-teal">Reliable live: AUC {live?.model.auc}</div>
+              : <div className="text-3xl font-extrabold text-elev">No reliable signal</div>}
+            <p className="mt-2 text-sm text-muted">
+              We trained a model to predict who leaves before being seen ({lbc.positive_rate_test_pct}% of test visits).
+              In hindsight, knowing each patient's final wait, it scores AUC {lbc.model.auc}. But the radar only knows how long
+              someone has waited <i>so far</i>, so we also replay every 30 minutes of November–December and score it live
+              {live ? ` (${live.patient_moments.toLocaleString()} patient-moments)` : ''}.
+            </p>
+            <p className="mt-2 text-sm text-muted">
+              {trusted
+                ? `Live it scores ${live?.model.auc} where 0.5 is a coin flip, ahead of the best simple rule (${bestRuleAuc}), so the radar uses it to rank patients.`
+                : live
+                  ? `Live it scores ${live.model.auc} where 0.5 is a coin flip, no better than simple rules, so QueueSight does not use it.`
+                  : 'It has not been checked live yet: retrain the models to run the check.'}
+            </p>
+          </div>
+          <table className="w-full self-start text-sm">
             <thead className="text-left text-muted">
-              <tr><th className="pb-2 font-normal">Method</th><th className="pb-2 font-normal">AUC</th><th className="pb-2 font-normal">PR-AUC</th><th className="pb-2 font-normal">Walk-outs in top 10%</th></tr>
+              <tr><th className="pb-2 font-normal">Method (AUC)</th><th className="pb-2 font-normal">In hindsight</th><th className="pb-2 font-normal">Live, as the radar uses it</th></tr>
             </thead>
             <tbody className="divide-y divide-rule">
-              {Object.entries(lbc.baselines).map(([k, s]) => (
-                <tr key={k}><td className="py-2">{k}</td><td>{s.auc}</td><td>{s.pr_auc}</td><td>{Math.round(100 * s.recall_top10pct)}%</td></tr>
+              <tr className="font-semibold"><td className="py-2">QueueSight model</td><td>{lbc.model.auc}</td><td>{live?.model.auc ?? '–'}</td></tr>
+              {WALKOUT_RULES.map((r) => (
+                <tr key={r.label}><td className="py-2">{r.label}</td><td>{lbc.baselines[r.hindsight]?.auc ?? '–'}</td><td>{live?.rules[r.live]?.auc ?? '–'}</td></tr>
               ))}
-              <tr className="font-semibold"><td className="py-2">QueueSight model</td><td>{lbc.model.auc}</td><td>{lbc.model.pr_auc}</td><td>{Math.round(100 * lbc.model.recall_top10pct)}%</td></tr>
-              <tr className="text-muted"><td className="py-2">Coin flip</td><td>0.5</td><td>{(lbc.positive_rate_test_pct / 100).toFixed(3)}</td><td>10%</td></tr>
+              <tr className="text-muted"><td className="py-2">Coin flip</td><td>0.5</td><td>0.5</td></tr>
             </tbody>
           </table>
         </div>
+
+        {live && live.calibration_after.length > 0 && (
+          <div className="mt-6">
+            <div className="text-sm font-semibold">Do the percentages mean what they say? (November–December)</div>
+            <p className="mt-1 text-sm text-muted">
+              Raw scores were too confident at the top and too low at the bottom. A calibration step learned on October fixes that,
+              so a patient shown at 40% really belongs to a group where about 4 in 10 walk out.
+            </p>
+            <div className="mt-3 grid gap-6 md:grid-cols-2">
+              {([['Before calibration', live.calibration_before], ['After calibration (what staff see)', live.calibration_after]] as const).map(([title, bands]) => (
+                <table key={title} className="w-full text-sm">
+                  <thead className="text-left text-muted">
+                    <tr><th className="pb-2 font-normal">{title}</th><th className="pb-2 font-normal">Shown</th><th className="pb-2 font-normal">Really left</th></tr>
+                  </thead>
+                  <tbody className="divide-y divide-rule">
+                    {bands.map((b) => (
+                      <tr key={b.band}><td className="py-1.5 text-muted">risk {b.band}</td><td>{pct(b.shown)}</td><td className="font-semibold">{pct(b.really_left)}</td></tr>
+                    ))}
+                  </tbody>
+                </table>
+              ))}
+            </div>
+          </div>
+        )}
       </Card>
     </div>
   )
