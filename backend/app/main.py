@@ -37,6 +37,17 @@ DISCLAIMERS = {
     "sim": "Simulated hospital from the QueueSight simulator. Not for clinical decisions.",
 }
 
+# A walk-out risk score is only worth showing staff as a warning when it is clearly better than chance (AUC 0.5)
+TRUSTED_AUC = 0.75
+
+
+def _walkout_model():
+    """Can staff rely on the walk-out model for this hospital? Only if it clears TRUSTED_AUC and beats every simple rule."""
+    w = STATE.metrics["walkout_risk"]
+    auc = w["model"]["auc"]
+    best_rule = max((s["auc"] or 0) for s in w["baselines"].values())
+    return {"auc": auc, "best_rule_auc": best_rule, "trusted": bool(auc and auc >= TRUSTED_AUC and auc > best_rule)}
+
 
 @app.get("/api/health")
 def health():
@@ -52,6 +63,7 @@ def meta():
         "test_period_start": STATE.test_start.isoformat(), "default_time": STATE.default_time.isoformat(),
         "departments": [{"id": k, "name": v} for k, v in STATE.dept_names.items()],
         "disclaimer": DISCLAIMERS[DATA_SOURCE],
+        "walkout_model": _walkout_model(),
     }
 
 
