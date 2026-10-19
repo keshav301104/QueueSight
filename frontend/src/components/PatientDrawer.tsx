@@ -8,7 +8,8 @@ import { useClock } from '../lib/clock'
 import { DriverBars, RiskCurve, WaitBand } from './viz'
 
 export default function PatientDrawer({ encounterId, onClose }: { encounterId: string | null; onClose: () => void }) {
-  const { time } = useClock()
+  const { time, meta } = useClock()
+  const walkoutModel = meta?.walkout_model
   const q = useQuery({
     queryKey: ['encounter', encounterId, time],
     queryFn: () => api.encounter(encounterId!, time!),
@@ -55,13 +56,15 @@ export default function PatientDrawer({ encounterId, onClose }: { encounterId: s
                 </div>
 
                 <section>
-                  <h3 className="font-bold">
-                    {d.status === 'waiting' ? `Waiting ${Math.round(d.waited_min)} min` : `Waited ${Math.round(d.waited_min)} min`}
+                  <h3 className={`font-bold ${d.status === 'left' ? 'text-crit' : ''}`}>
+                    {d.status === 'waiting' && `Waiting ${Math.round(d.waited_min)} min`}
+                    {d.status === 'seen' && `Waited ${Math.round(d.waited_min)} min`}
+                    {d.status === 'left' && `Left without being seen after ${Math.round(d.waited_min)} min`}
                   </h3>
                   <p className="text-sm text-muted">
                     Arrived {fmtDate(d.arrival_time)}, {fmtTime(d.arrival_time)}.
                     Predicted wait {Math.round(d.prediction.p10)} to {Math.round(d.prediction.p90)} min, most likely {Math.round(d.prediction.p50)}.
-                    {d.outcome && ` Outcome: ${d.outcome}.`}
+                    {d.outcome && d.status === 'seen' && ` Outcome: ${d.outcome}.`}
                   </p>
                   <div className="mt-3"><WaitBand {...d.prediction} waited={d.waited_min} height={18} /></div>
                 </section>
@@ -74,7 +77,11 @@ export default function PatientDrawer({ encounterId, onClose }: { encounterId: s
 
                 <section>
                   <h3 className="font-bold">Walk-out risk {d.status === 'waiting' ? 'right now' : 'at this wait'}: {(100 * d.walkout_risk_now).toFixed(1)}%</h3>
-                  <p className="mb-2 text-sm text-muted">Shown for transparency only: our walk-out model found no reliable signal in this data (AUC 0.53), so it never raises alerts.</p>
+                  <p className="mb-2 text-sm text-muted">
+                    {walkoutModel?.trusted
+                      ? `How likely this patient is to leave unseen as their wait grows. The model is reliable for this hospital (AUC ${walkoutModel.auc}, where 0.5 is a coin flip).`
+                      : `Shown for transparency only: the walk-out model found no reliable signal in this hospital's data (AUC ${walkoutModel?.auc ?? '–'}), so it never raises alerts.`}
+                  </p>
                   <RiskCurve points={d.risk_curve} waited={d.waited_min} />
                   <div className="mt-3"><DriverBars drivers={d.why_risk.drivers} unit="risk" /></div>
                 </section>
@@ -107,7 +114,7 @@ export default function PatientDrawer({ encounterId, onClose }: { encounterId: s
                   )}
                 </section>
 
-                <p className="text-xs text-muted">Synthetic data. Predictions support staff judgement and never replace clinical triage.</p>
+                <p className="text-xs text-muted">{meta?.disclaimer} Predictions support staff judgement and never replace clinical triage.</p>
               </div>
             )}
           </motion.aside>
