@@ -17,7 +17,8 @@ const STATE_TEXT: Record<RadarState, string> = { waiting: 'Waiting now', left_un
 const WINDOWS = [24, 72, 168]
 
 export default function RadarPage() {
-  const { time } = useClock()
+    const { time, meta } = useClock()
+  const riskUsed = meta?.walkout_model.trusted ?? false
   const [, setParams] = useSearchParams()
   const [filter, setFilter] = useState<RadarState | 'all'>('all')
   const [hours, setHours] = useState(24)
@@ -33,6 +34,11 @@ export default function RadarPage() {
         <p className="mt-1 text-muted">
           Everyone waiting longer than our model expected, likely to walk out, or who already left without being seen.
           The shaded band is each patient's predicted wait; the dot is how long they have actually waited.
+        </p>
+                <p className="mt-2 text-sm text-muted">
+          {riskUsed
+            ? 'Ranked by minutes past the predicted range plus walk-out risk, so someone likely to leave rises even before they are overdue.'
+            : "Ranked by minutes past the predicted range. Walk-out risk is not used: the model is not reliable for this hospital's data."}
         </p>
       </div>
 
@@ -75,7 +81,10 @@ export default function RadarPage() {
                 {Math.round(p.waited_min)} min waited, expected {Math.round(p.pred_p10)} to {Math.round(p.pred_p90)}
               </span>
             </span>
-            <span className="text-sm">{p.walkout_risk_now === null ? '–' : `${(100 * p.walkout_risk_now).toFixed(1)}%`}</span>
+            <span className={`text-sm ${riskUsed && (p.walkout_risk_now ?? 0) >= 0.5 ? 'font-semibold text-crit' : riskUsed && (p.walkout_risk_now ?? 0) >= 0.25 ? 'font-semibold text-elev' : ''}`}
+              title={riskUsed ? undefined : 'Not used: the walk-out model is not reliable for this hospital'}>
+              {p.walkout_risk_now === null || !riskUsed ? '–' : `${(100 * p.walkout_risk_now).toFixed(1)}%`}
+            </span>
             <span className={`pb-3 text-sm md:pb-0 ${p.minutes_over_p90 > 0 ? 'font-semibold text-crit' : 'text-muted'}`}>
               {p.minutes_over_p90 > 0 ? `${Math.round(p.minutes_over_p90)} min` : 'within range'}
             </span>
