@@ -103,6 +103,60 @@
       "is_weekend": 0.0036,
       "sex": 0.0,
       "waiting_now": 0.0
+    },
+    "live": {
+      "how": "every 30min of Nov-Dec 2025: each waiting patient's risk right now vs whether they later walked out",
+      "patient_moments": 2291,
+      "walked_out_pct": 3.0,
+      "model": {
+        "auc": 0.496,
+        "pr_auc": 0.03,
+        "brier": 0.0299
+      },
+      "rules": {
+        "minutes waited so far": {
+          "auc": 0.505,
+          "pr_auc": 0.03
+        },
+        "triage rate": {
+          "auc": 0.489,
+          "pr_auc": 0.029
+        }
+      },
+      "calibration_before": [
+        {
+          "band": "0%-5%",
+          "shown": 0.03,
+          "really_left": 0.031,
+          "n": 2205
+        },
+        {
+          "band": "5%-10%",
+          "shown": 0.057,
+          "really_left": 0.013,
+          "n": 80
+        },
+        {
+          "band": "10%-20%",
+          "shown": 0.14,
+          "really_left": 0.0,
+          "n": 6
+        }
+      ],
+      "calibration_after": [
+        {
+          "band": "0%-5%",
+          "shown": 0.027,
+          "really_left": 0.03,
+          "n": 2284
+        },
+        {
+          "band": "35%-50%",
+          "shown": 0.375,
+          "really_left": 0.0,
+          "n": 7
+        }
+      ]
     }
   }
 }
