@@ -14,6 +14,8 @@ from app.ml import predict_lbc
 
 EVERY = "30min"                       # how often we stop the clock during the replay
 RISK_BANDS = [0, 0.05, 0.10, 0.20, 0.35, 0.50, 1.0]
+MIN_PER_STEP = 200                    # every calibration step rests on at least this many patient-moments
+MAX_STEPS = 20
 
 
 def replay(df, start, end, risk_fn, every=EVERY):
@@ -32,11 +34,15 @@ def replay(df, start, end, risk_fn, every=EVERY):
                          "triage_level": w["triage_level"].to_numpy(), "left": w["is_lbc"].to_numpy()})
 
 
-def fit_calibrator(snaps):
+def fit_calibrator(snaps, min_per_step=MIN_PER_STEP):
     """Map a raw risk score to the share of such patients who really walked out.
-    Isotonic = a staircase that never goes down, so a higher raw score never becomes a lower percentage."""
+    Patients are sorted by raw score and put into equal-size groups of at least min_per_step, so no step of the
+    staircase rests on a handful of people. Isotonic regression then makes sure it never goes down."""
+    raw = snaps["risk"].to_numpy(dtype=float)
+    left = snaps["left"].to_numpy(dtype=float)
+    groups = np.array_split(np.argsort(raw, kind="stable"), max(1, min(MAX_STEPS, len(raw) // min_per_step)))
     iso = IsotonicRegression(y_min=0.0, y_max=1.0, out_of_bounds="clip")
-    iso.fit(snaps["risk"].astype(float), snaps["left"].astype(float))
+    iso.fit([raw[g].mean() for g in groups], [left[g].mean() for g in groups], sample_weight=[len(g) for g in groups])
     return iso
 
 

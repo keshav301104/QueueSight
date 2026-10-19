@@ -35,10 +35,15 @@ def test_replay_sees_only_patients_still_waiting_and_how_long_so_far(visits):
 def test_calibration_turns_overconfident_scores_into_real_rates():
     shown_90 = pd.DataFrame({"risk": [0.9] * 10, "left": [1] * 5 + [0] * 5})   # model says 90%, really 50%
     shown_20 = pd.DataFrame({"risk": [0.2] * 10, "left": [1] * 2 + [0] * 8})   # model says 20%, really 20%
-    cal = fit_calibrator(pd.concat([shown_90, shown_20]))
+    cal = fit_calibrator(pd.concat([shown_90, shown_20]), min_per_step=10)
     assert cal.predict([0.9, 0.2]) == pytest.approx([0.5, 0.2])
     assert cal.predict([0.99])[0] == pytest.approx(0.5)                          # never above what really happened
 
+def test_a_handful_of_extreme_cases_cannot_create_an_extreme_step():
+    usual = pd.DataFrame({"risk": [0.1] * 400, "left": [1] * 40 + [0] * 360})    # 10% really leave
+    three_extremes = pd.DataFrame({"risk": [0.99] * 3, "left": [1] * 3})         # 3 of 3 left: too few to trust
+    cal = fit_calibrator(pd.concat([usual, three_extremes]), min_per_step=200)
+    assert cal.predict([0.99])[0] < 0.2                                          # not "100% will walk out"
 
 def metrics(hindsight_auc, live_auc, *rule_aucs):
     m = {"walkout_risk": {"model": {"auc": hindsight_auc}}}
