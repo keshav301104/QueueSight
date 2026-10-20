@@ -247,6 +247,17 @@ docker compose up --build
 
 Open **http://localhost:8080**. API docs: http://localhost:8000/docs. The first build takes a few minutes; after that it starts in seconds. Stop with `Ctrl+C`, then `docker compose down`.
 
+
+#### The simulated hospital
+
+QueueSight also ships a simulated 12-department hospital (153,000 visits in 2025) where walk-outs have real causes. To run it, create a file called `.env` next to `compose.yaml` with this one line:
+
+```
+QUEUESIGHT_DATA=sim
+```
+
+Then run `docker compose up -d --build`. The first start simulates the year and trains the models (a few minutes); they are kept in Docker volumes, so every start after that skips this step and is ready in under a minute. Remove the line to switch back to the DATATHON hospital, and use `docker compose down -v` to delete the simulated hospital and start fresh.
+
 ### Without Docker
 
 **Prerequisites:** Python 3.11+ and Node 20+.
