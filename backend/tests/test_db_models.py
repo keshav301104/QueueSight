@@ -1,6 +1,7 @@
 """The database tables match the dataset files column for column, and are ready to become TimescaleDB hypertables."""
 import pandas as pd
 import pytest
+from sqlalchemy import DateTime
 
 from app.config import ROOT_DIR
 from app.db import CSV_TABLES, HYPERTABLES, SQLModel, get_engine
@@ -23,7 +24,12 @@ def test_walkouts_may_have_no_service_times_but_every_visit_has_an_arrival_time(
     assert cols["service_start_time"].nullable and cols["service_end_time"].nullable
     assert not cols["arrival_time"].nullable
 
-
+def test_hospital_times_are_stored_as_the_hospital_clock_shows_them_never_shifted_to_utc():
+    for name, table in SQLModel.metadata.tables.items():
+        for col in table.columns:
+            if isinstance(col.type, DateTime):
+                assert col.type.timezone is (name == "loaded_hospital"), f"{name}.{col.name}"
+                
 def test_a_clear_message_when_no_database_is_configured(monkeypatch):
     monkeypatch.setattr("app.db.DATABASE_URL", None)
     with pytest.raises(RuntimeError, match="DATABASE_URL is not set"):
