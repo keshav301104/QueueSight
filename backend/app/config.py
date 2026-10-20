@@ -21,6 +21,10 @@ if DATA_SOURCE not in DATA_SOURCES:
 RAW_DIR = DATA_SOURCES[DATA_SOURCE]                               # input CSVs for the chosen hospital
 ARTIFACTS_DIR = ROOT_DIR / "backend" / "artifacts" / DATA_SOURCE  # each hospital keeps its own models + reports
 
+# Where the API reads the hospital from. Empty = straight from the CSV files above (quick local runs, tests).
+# Docker sets it to the PostgreSQL + TimescaleDB container, e.g. postgresql+psycopg://queuesight:queuesight@db:5432/queuesight
+DATABASE_URL = os.getenv("DATABASE_URL") or None
+
 # Time-based split (never use the future to predict the past) - both hospitals cover calendar year 2025
 #   train: Jan-Sep 2025 | validation: Oct 2025 | test: Nov-Dec 2025
 TRAIN_END = pd.Timestamp("2025-10-01")
