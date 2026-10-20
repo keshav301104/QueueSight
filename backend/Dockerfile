@@ -25,9 +25,12 @@ RUN pip install -r requirements.txt
 COPY backend/ .
 COPY data/raw/ /app/data/raw/
 
-# Run as a normal user, not root
-RUN useradd --create-home queuesight
+# Run as a normal user, not root. It owns the two folders where the simulated hospital and its models are kept.
+RUN useradd --create-home queuesight \
+ && mkdir -p /app/data/sim /app/backend/artifacts/sim \
+ && chown queuesight /app/data/sim /app/backend/artifacts/sim
 USER queuesight
 
 EXPOSE 8000
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+# Get the chosen hospital ready (real work only on the very first start), then start the API
+CMD ["sh", "-c", "python -m scripts.prepare && exec uvicorn app.main:app --host 0.0.0.0 --port 8000"]
