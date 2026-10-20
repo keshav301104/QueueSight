@@ -4,15 +4,37 @@
 name: queuesight
 
 services:
+  db:
+    image: timescale/timescaledb:2.30.2-pg16   # PostgreSQL 16 + TimescaleDB, pinned so everyone runs the same version
+    environment:
+      POSTGRES_USER: queuesight
+      POSTGRES_PASSWORD: queuesight           # for local development only, never reuse it anywhere real
+      POSTGRES_DB: queuesight
+      TIMESCALEDB_TELEMETRY: "off"
+    ports:
+      - "5433:5432"                           # 5433 on your PC, so it never clashes with a Postgres you already have
+    volumes:
+      - pgdata:/var/lib/postgresql/data       # the database survives restarts and rebuilds
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U queuesight -d queuesight"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
   backend:
     build:
       context: .                      # repo root, so the image can include data/raw/
       dockerfile: backend/Dockerfile
+    environment:
+      QUEUESIGHT_DATA: ${QUEUESIGHT_DATA:-datathon}   # which hospital: datathon (default) or sim, set in a .env file
+    volumes:                                          # the simulated hospital and its models survive restarts
+      - sim-data:/app/data/sim
+      - sim-models:/app/backend/artifacts/sim
     ports:
       - "8000:8000"
     healthcheck:                      # healthy = models loaded and /api/health answers
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/health', timeout=3)"]
-      start_period: 60s               # while starting up...
+      start_period: 900s              # while starting up (the first simulated start also simulates + trains)...
       start_interval: 2s              # ...check every 2 s, so the frontend can start quickly
       interval: 30s                   # once running, check every 30 s
       timeout: 5s
@@ -25,3 +47,8 @@ services:
     depends_on:
       backend:
         condition: service_healthy    # start nginx only once the API is ready
+
+volumes:
+  sim-data:
+  sim-models:
+  pgdata:
