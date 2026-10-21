@@ -48,6 +48,7 @@ def meta():
     return {
         "product": "QueueSight",
         "data_source": DATA_SOURCE,
+        "stored_in": STATE.stored_in,             # "PostgreSQL + TimescaleDB" or "CSV files"
         "time_min": STATE.time_min.isoformat(), "time_max": STATE.time_max.isoformat(),
         "test_period_start": STATE.test_start.isoformat(), "default_time": STATE.default_time.isoformat(),
         "departments": [{"id": k, "name": v} for k, v in STATE.dept_names.items()],
