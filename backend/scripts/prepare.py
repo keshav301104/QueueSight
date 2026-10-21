@@ -1,5 +1,6 @@
 """
-QueueSight - make sure the chosen hospital is ready to serve: its data first, then its trained models.
+QueueSight - make sure the chosen hospital is ready to serve: its data first, then its trained models, then (when
+DATABASE_URL is set) the database's tables and the hospital inside it.
 
 Docker runs this before starting the API, and it is handy locally too.  Run from inside backend/:
     python -m scripts.prepare                                   (datathon: data and models are in the repo, just checks)
@@ -8,7 +9,7 @@ Docker runs this before starting the API, and it is handy locally too.  Run from
 import time
 from pathlib import Path
 
-from app.config import ARTIFACTS_DIR, DATA_SOURCE, RAW_DIR
+from app.config import ARTIFACTS_DIR, DATA_SOURCE, DATABASE_URL, RAW_DIR
 
 DATA_FILES = ["patients.csv", "encounters.csv", "departments.csv", "diagnostic_tests.csv"]
 MODEL_FILES = ["models/wait_model.joblib", "models/lbc_model.joblib", "metrics.json", "quality.json"]
@@ -27,11 +28,8 @@ def steps_needed(source: str, raw_dir: Path, artifacts_dir: Path) -> list[str]:
 
 
 def main():
-    steps = steps_needed(DATA_SOURCE, RAW_DIR, ARTIFACTS_DIR)
-    if not steps:
-        print(f"[prepare] {DATA_SOURCE} hospital: data and models ready")
-        return
     t0 = time.time()
+    steps = steps_needed(DATA_SOURCE, RAW_DIR, ARTIFACTS_DIR)
     if "simulate" in steps:
         print("[prepare] no simulated hospital yet - simulating 2025 (about a minute) ...")
         from sim.config import SimConfig
@@ -42,7 +40,10 @@ def main():
         print(f"[prepare] no trained models for the {DATA_SOURCE} hospital yet - training ...")
         from scripts.train_models import main as train
         train()
-    print(f"[prepare] {DATA_SOURCE} hospital ready in {time.time() - t0:.0f}s")
+    print(f"[prepare] {DATA_SOURCE} hospital: data and models ready ({time.time() - t0:.0f}s)")
+    if DATABASE_URL:   # after training: the database also stores every visit's predicted wait range
+        from scripts.load_db import main as load_db
+        load_db()
 
 
 if __name__ == "__main__":
