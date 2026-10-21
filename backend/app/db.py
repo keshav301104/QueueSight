@@ -10,8 +10,8 @@ timezone: NaiveDatetime keeps them unshifted, so 09:00 stays 09:00 and hourly pa
 from datetime import datetime
 
 from pydantic import NaiveDatetime
-from sqlalchemy import Engine
-from sqlmodel import Field, SQLModel, create_engine
+from sqlalchemy import Engine, inspect
+from sqlmodel import Field, Session, SQLModel, create_engine
 
 from app.config import DATABASE_URL
 
@@ -98,6 +98,12 @@ def get_engine(url: str | None = None) -> Engine:
                            "e.g. postgresql+psycopg://queuesight:queuesight@localhost:5433/queuesight")
     return create_engine(url, pool_pre_ping=True)
 
+def loaded_hospital(engine: Engine) -> LoadedHospital | None:
+    """Which hospital the database holds right now, or None if nothing has been loaded (or migrated) yet."""
+    if not inspect(engine).has_table("loaded_hospital"):
+        return None
+    with Session(engine) as session:
+        return session.get(LoadedHospital, 1)
 
 def is_ours(obj, name, type_, reflected, compare_to) -> bool:
     """For Alembic: compare the database only with what our models define. TimescaleDB adds a time index to every
