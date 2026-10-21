@@ -82,6 +82,7 @@ class LoadedHospital(SQLModel, table=True):
     source: str                                             # "datathon" or "sim"
     loaded_at: datetime                                     # a real moment (UTC), unlike the hospital clock
     encounters: int
+    fingerprint: str 
 
 
 # CSV file name -> table, in an order that respects the foreign keys when loading
