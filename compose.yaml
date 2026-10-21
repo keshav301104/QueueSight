@@ -16,7 +16,7 @@ services:
     volumes:
       - pgdata:/var/lib/postgresql/data       # the database survives restarts and rebuilds
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U queuesight -d queuesight"]
+      test: ["CMD-SHELL", "pg_isready -h localhost -U queuesight -d queuesight"]   # -h: the real server, not the first-setup one
       interval: 5s
       timeout: 5s
       retries: 10
@@ -27,6 +27,12 @@ services:
       dockerfile: backend/Dockerfile
     environment:
       QUEUESIGHT_DATA: ${QUEUESIGHT_DATA:-datathon}   # which hospital: datathon (default) or sim, set in a .env file
+      # "db" is the database container's name on Docker's network. Written out in full on purpose, so a DATABASE_URL
+      # left in your terminal (pointing at localhost) can never leak in here.
+      DATABASE_URL: postgresql+psycopg://queuesight:queuesight@db:5432/queuesight
+    depends_on:
+      db:
+        condition: service_healthy                    # start only once PostgreSQL accepts connections
     volumes:                                          # the simulated hospital and its models survive restarts
       - sim-data:/app/data/sim
       - sim-models:/app/backend/artifacts/sim
