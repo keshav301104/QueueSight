@@ -1,6 +1,7 @@
 """The walk-out model is judged the way the radar uses it: live, knowing only how long each patient has waited so far."""
 import pandas as pd
 import pytest
+
 from app.live_eval import fit_calibrator, replay
 from app.state import walkout_verdict
 

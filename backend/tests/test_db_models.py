@@ -1,9 +1,10 @@
 """The database tables match the dataset files column for column, and are ready to become TimescaleDB hypertables."""
 import pandas as pd
 import pytest
+from sqlalchemy import DateTime
+
 from app.config import ROOT_DIR
 from app.db import CSV_TABLES, HYPERTABLES, SQLModel, get_engine
-from sqlalchemy import DateTime
 
 
 @pytest.mark.parametrize("name", list(CSV_TABLES))
@@ -33,5 +34,5 @@ def test_a_clear_message_when_no_database_is_configured(monkeypatch):
     monkeypatch.setattr("app.db.DATABASE_URL", None)
     with pytest.raises(RuntimeError, match="DATABASE_URL is not set"):
         get_engine()
-# ... (existing code in test_db_models.py) ...
+
 

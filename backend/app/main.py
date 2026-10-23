@@ -7,8 +7,8 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import DATA_SOURCE
 from app.snapshot import board, encounter_detail, radar
-from app.trends import trends
 from app.state import STATE
+from app.trends import trends
 
 
 @asynccontextmanager

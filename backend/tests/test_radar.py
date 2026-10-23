@@ -1,5 +1,6 @@
 """The radar ranks by minutes past the predicted range, and adds walk-out risk only when that model is trusted live."""
 import pytest
+
 from app.snapshot import LEFT_BONUS, WALKOUT_WEIGHT, priority
 
 

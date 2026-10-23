@@ -13,10 +13,11 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 import pandas as pd
+from sqlalchemy import Engine, Integer, insert, select, text
+
 from app.config import ARTIFACTS_DIR, DATA_SOURCE, RAW_DIR
 from app.data import TABLES, clean, load_raw
 from app.db import CSV_TABLES, LoadedHospital, Prediction, get_engine
-from sqlalchemy import Engine, Integer, insert, select, text
 
 BACKEND = Path(__file__).resolve().parents[1]
 PREDICTIONS = "encounter_predictions.csv"   # written by scripts.train_models
