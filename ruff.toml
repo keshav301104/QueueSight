@@ -1,0 +1,4 @@
+# Ruff: the Python linter that CI runs on every push (ruff check backend/). One shared config, so every PC agrees.
+line-length = 120
+target-version = "py312"     # the Python version in our Docker image
+src = ["backend"]            # app, scripts, sim and tests are our own code, so their imports get their own group
