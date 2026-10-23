@@ -7,6 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import DATA_SOURCE
 from app.snapshot import board, encounter_detail, radar
+from app.trends import trends
 from app.state import STATE
 
 
@@ -69,6 +70,15 @@ def get_radar(t: str | None = None, hours: int = Query(24, ge=1, le=168)):
     ts = _clock(t)
     return {"time": ts.isoformat(), "window_hours": hours, "items": radar(ts, hours)}
 
+@app.get("/api/trends")
+def get_trends(t: str | None = None, days: int = Query(7, ge=1, le=28),
+               department: str | None = Query(None, description="Department id, e.g. D01. Empty = whole hospital")):
+    if department and department not in STATE.dept_names:
+        raise HTTPException(404, f"unknown department: {department}")
+    ts = _clock(t)
+    source = STATE.engine if STATE.engine is not None else STATE.df   # TimescaleDB when there is a database
+    return {"time": ts.isoformat(), "department": department, "days": days,
+            **trends(source, ts, days, department, data_start=STATE.time_min)}
 
 @app.get("/api/encounters/{encounter_id}")
 def get_encounter(encounter_id: str, t: str | None = None):
