@@ -49,8 +49,9 @@ def test_upgrade_creates_every_table(engine):
 
 def test_visits_tests_and_predictions_become_hypertables_in_30_day_chunks(engine):
     with engine.connect() as c:
+        # only our tables, not the hidden storage TimescaleDB keeps for the hourly summary (migration 0003)
         rows = c.execute(text("SELECT hypertable_name, column_name, time_interval "
-                              "FROM timescaledb_information.dimensions")).all()
+                              "FROM timescaledb_information.dimensions WHERE hypertable_schema = 'public'")).all()
     assert {r.hypertable_name: r.column_name for r in rows} == HYPERTABLES
     assert {r.time_interval for r in rows} == {timedelta(days=30)}
 
