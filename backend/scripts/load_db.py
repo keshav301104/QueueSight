@@ -1,6 +1,6 @@
 """
 QueueSight - put the chosen hospital into the database: its cleaned records, and the wait range our model predicted
-for every visit. Skipped when the database already holds exactly these files.
+for every visit, then refresh the hourly summary. Skipped when the database already holds exactly these files.
 
 Run from inside backend/, with DATABASE_URL set:
     python -m scripts.load_db              bring the tables up to date, then load (if anything changed)
@@ -53,6 +53,7 @@ def load(engine: Engine, source: str, raw_dir: Path, artifacts_dir: Path, force:
     with engine.connect() as conn:
         loaded = conn.execute(select(LoadedHospital.__table__)).first()
     if loaded and loaded.fingerprint == code and not force:
+        refresh_hourly(engine)   # quick when nothing changed; fills the summary the first time after migration 0003
         return None
 
     cleaned = clean(load_raw(raw_dir))
@@ -65,8 +66,16 @@ def load(engine: Engine, source: str, raw_dir: Path, artifacts_dir: Path, force:
         conn.execute(insert(LoadedHospital.__table__).values(
             id=1, source=source, loaded_at=datetime.now(timezone.utc),
             encounters=len(cleaned["encounters"]), fingerprint=code))
+    refresh_hourly(engine)
     return {"visits": len(cleaned["encounters"]), "tests": len(cleaned["tests"]),
             "patients": len(cleaned["patients"]), "predictions": len(predictions)}
+
+
+def refresh_hourly(engine: Engine):
+    """Re-summarise the hourly_visits continuous aggregate (migration 0003) from the visits now in the database.
+    PostgreSQL won't run this inside a transaction, so it gets its own connection in autocommit mode."""
+    with engine.connect().execution_options(isolation_level="AUTOCOMMIT") as conn:
+        conn.execute(text("CALL refresh_continuous_aggregate('hourly_visits', NULL, NULL)"))
 
 
 def migrate():
